@@ -90,8 +90,6 @@ Aipen is designed to grow beyond study notes. Planned directions include:
 - Letter and email automation with handwritten, print-ready output
 - Branded stationery, business documents, and personalized card templates
 - Real-estate packs, lab reports, finance notes, and subject-specific layouts
-- Custom handwriting/font upload for subscribed users
-- Saved documents, account linking, credits, and paid plans
 
 ## Local Development
 
