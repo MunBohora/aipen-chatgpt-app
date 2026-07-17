@@ -1,0 +1,11 @@
+{
+  "rule": [
+    {
+      "action": { "type": "Delete" },
+      "condition": {
+        "matchesPrefix": ["chatgpt-renders/"],
+        "daysSinceCustomTime": 1
+      }
+    }
+  ]
+}
