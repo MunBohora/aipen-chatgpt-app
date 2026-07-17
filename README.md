@@ -1,7 +1,7 @@
 # Aipen for ChatGPT
 
-**Turn any ChatGPT answer into realistic handwritten, print-ready notes without
-leaving the chat.**
+**Turn any ChatGPT answer into hyper realistic handwritten, print-ready notes
+without leaving the chat.**
 
 Aipen for ChatGPT is an OpenAI Apps SDK application built on MCP. Ask ChatGPT
 for notes, a worked solution, a letter, or a report, and Aipen renders it as a
@@ -11,6 +11,11 @@ vector PDF.
 This repository intentionally contains only the standalone MCP server and its
 inline ChatGPT component. The proprietary Aipen editor and render engine remain
 separate.
+
+![Aipen handwritten mathematics notes preview](image%20demo.jpeg)
+
+The image above is a real Aipen render: handwritten layout, ruled A4 paper,
+humanized letterforms, and rendered mathematics.
 
 ## Judge Quick Start: No Rebuild Needed
 
@@ -69,6 +74,24 @@ bucket lifecycle cleanup removes leftover objects later.
 - Markdown and LaTex-style math support through the Aipen render engine
 - Hard demo protections: 8,000 characters, five pages, 40 renders/IP/hour
 - Private, temporary artifact storage with no browser-exposed cloud credentials
+
+## Language Support
+
+Native handwriting currently supports English and languages using the standard
+English alphabet, including Afrikaans, Albanian, Catalan, Croatian, Czech,
+Danish, Dutch, Estonian, Finnish, French, German, Icelandic, Irish, Italian,
+Latvian, Lithuanian, Norwegian, Polish, Portuguese, Romanian, Slovak,
+Slovenian, Spanish, Swedish, Turkish, and Welsh. More languages are planned.
+
+## Future Possibilities
+
+Aipen is designed to grow beyond study notes. Planned directions include:
+
+- Letter and email automation with handwritten, print-ready output
+- Branded stationery, business documents, and personalized card templates
+- Real-estate packs, lab reports, finance notes, and subject-specific layouts
+- Custom handwriting/font upload for subscribed users
+- Saved documents, account linking, credits, and paid plans
 
 ## Local Development
 
