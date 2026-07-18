@@ -10,12 +10,16 @@ vector PDF that stays crisp when printed or zoomed in.
 
 This repository intentionally contains only the standalone MCP server and its
 inline ChatGPT component. The proprietary Aipen editor and render engine remain
-separate.
+separate. Its humanization layer can select from up to 20 glyph variations per
+character, which helps long documents avoid a mechanically repeated look.
 
-![Aipen handwritten mathematics notes preview](image%20demo.jpeg)
+<p align="center">
+  <img src="image%20demo.jpeg" width="420" alt="Aipen handwritten mathematics notes preview" />
+  <img src="graph%20demo.jpeg" width="420" alt="Aipen hand-drawn supply and demand graph preview" />
+</p>
 
-The image above is a real Aipen render: handwritten layout, ruled A4 paper,
-humanized letterforms, and rendered mathematics.
+The images above are real Aipen renders: handwritten layout, ruled A4 paper,
+humanized letterforms, rendered mathematics, and an accurate hand-drawn graph.
 
 ## Judge Quick Start: No Rebuild Needed
 
@@ -75,6 +79,13 @@ bucket lifecycle cleanup removes leftover objects later.
 - Markdown and LaTex-style math support through the Aipen render engine
 - Hard demo protections: 8,000 characters, five pages, 40 renders/IP/hour
 - Private, temporary artifact storage with no browser-exposed cloud credentials
+
+## Study Materials
+
+Aipen turns AI explanations into printable, annotatable study materials.
+Learners can review, highlight, and work through them by hand. It does not claim
+that viewing generated handwriting has the same learning effect as personally
+writing notes by hand.
 
 ## Language Support
 
