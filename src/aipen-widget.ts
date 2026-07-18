@@ -4,22 +4,6 @@ export const AIPEN_WIDGET_RESOURCE_URIS = [
   AIPEN_WIDGET_URI,
   "ui://widget/aipen-preview-v19.html",
   "ui://widget/aipen-preview-v18.html",
-  "ui://widget/aipen-preview-v17.html",
-  "ui://widget/aipen-preview-v16.html",
-  "ui://widget/aipen-preview-v15.html",
-  "ui://widget/aipen-preview-v14.html",
-  "ui://widget/aipen-preview-v13.html",
-  "ui://widget/aipen-preview-v12.html",
-  "ui://widget/aipen-preview-v11.html",
-  "ui://widget/aipen-preview-v10.html",
-  "ui://widget/aipen-preview-v9.html",
-  "ui://widget/aipen-preview-v8.html",
-  "ui://widget/aipen-preview-v7.html",
-  "ui://widget/aipen-preview-v6.html",
-  "ui://widget/aipen-preview.html",
-  "ui://aipen/handwriting-preview-v5.html",
-  "ui://aipen/handwriting-preview-v4.html",
-  "ui://aipen/handwriting-preview-v3.html",
 ];
 
 export const aipenWidgetHtml = String.raw`<!doctype html>

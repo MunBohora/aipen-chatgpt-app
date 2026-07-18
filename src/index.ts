@@ -98,6 +98,7 @@ function normalizeRenderInput(input: RenderInput): RenderInput {
 const RENDER_TIMEOUT_MS = 60_000;
 const DOM_SETTLE_MS = 750;
 const MAX_RENDER_PAGES = 5;
+const MAX_RENDER_TEXT_CHARS = 6_500;
 const MAX_ANONYMOUS_RENDERS_PER_HOUR = Math.max(1, Number.parseInt(process.env.MAX_ANONYMOUS_RENDERS_PER_HOUR ?? "40", 10) || 40);
 const ANONYMOUS_RATE_WINDOW_MS = 60 * 60 * 1000;
 const ASSET_TTL_MS = 60 * 60 * 1000;
@@ -118,6 +119,7 @@ const anonymousRenderCounts = new Map<string, { count: number; resetAt: number }
 let activeRenderCount = 0;
 
 class DemoRenderLimitError extends Error {}
+class DemoRenderInputError extends Error {}
 
 const storage = new Storage();
 const artifactBucket = storage.bucket(GCS_ARTIFACT_BUCKET);
@@ -145,7 +147,13 @@ async function storeArtifact(body: Buffer, extension: AssetExtension) {
 }
 
 function clientIdentity(req: express.Request) {
-  return req.header("x-forwarded-for")?.split(",")[0]?.trim() || req.ip || "anonymous";
+  // Cloud Run appends the client-facing hop. The left-most value can be supplied
+  // by a caller, while the final non-empty hop is added by trusted infrastructure.
+  const forwardedFor = req.header("x-forwarded-for")
+    ?.split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return forwardedFor?.[forwardedFor.length - 1] || req.socket.remoteAddress || "anonymous";
 }
 
 function takeAnonymousRenderAllowance(clientId: string) {
@@ -173,13 +181,16 @@ function acquireRenderSlot() {
   return () => { activeRenderCount -= 1; };
 }
 
-function externalOrigin(req: express.Request) {
+let hasWarnedAboutMissingPublicBaseUrl = false;
+
+function externalOrigin() {
   const configuredOrigin = process.env.PUBLIC_BASE_URL?.replace(/\/$/, "");
   if (configuredOrigin) return configuredOrigin;
-  const protocol = req.header("x-forwarded-proto")?.split(",")[0] || req.protocol;
-  const host = req.header("x-forwarded-host")?.split(",")[0] || req.header("host");
-  if (!host) throw new Error("Unable to determine the MCP server's public origin.");
-  return `${protocol}://${host}`;
+  if (!hasWarnedAboutMissingPublicBaseUrl) {
+    console.warn("PUBLIC_BASE_URL is unset; refusing to generate asset URLs from forwarded request headers.");
+    hasWarnedAboutMissingPublicBaseUrl = true;
+  }
+  throw new Error("Server configuration error: PUBLIC_BASE_URL must be configured.");
 }
 
 function assetUrl(origin: string, id: string, extension: AssetExtension) {
@@ -200,13 +211,34 @@ function buildRenderUrl({ text, font, ink, paper, size, humanize }: RenderInput)
 
 async function renderHandwriting(input: RenderInput) {
   const renderUrl = buildRenderUrl(input);
+  const startedAt = Date.now();
   const deadline = Date.now() + RENDER_TIMEOUT_MS;
-  const remainingTime = () => {
+  const timeoutError = (stage: string) => new Error(
+    `Timed out during ${stage} after ${Math.ceil((Date.now() - startedAt) / 1000)} seconds.`,
+  );
+  const remainingTime = (stage: string) => {
     const remaining = deadline - Date.now();
     if (remaining <= 0) {
-      throw new Error("Timed out after 60 seconds waiting for Aipen to render visible content.");
+      throw timeoutError(stage);
     }
     return remaining;
+  };
+  const runStage = async <T>(stage: string, operation: () => Promise<T>) => {
+    const timeoutMs = remainingTime(stage);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(() => reject(timeoutError(stage)), timeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      if (Date.now() >= deadline) throw timeoutError(stage);
+      throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   };
   const browser = await chromium.launch({
     headless: true,
@@ -218,17 +250,20 @@ async function renderHandwriting(input: RenderInput) {
       deviceScaleFactor: 1.5,
       viewport: { width: 1280, height: 1600 },
     });
-    await page.goto(renderUrl, { waitUntil: "domcontentloaded", timeout: remainingTime() });
-    await page.waitForFunction(
+    await runStage("opening the Aipen render page", () => page.goto(renderUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: remainingTime("opening the Aipen render page"),
+    }));
+    await runStage("waiting for Aipen to finish rendering", () => page.waitForFunction(
       () => {
         const renderWindow = window as Window & { __aipenRenderDone?: boolean };
         return renderWindow.__aipenRenderDone === true ||
           document.getElementById("aipen-render-done") !== null;
       },
       undefined,
-      { timeout: remainingTime() },
-    );
-    await page.waitForFunction(
+      { timeout: remainingTime("waiting for Aipen to finish rendering") },
+    ));
+    await runStage("waiting for visible handwritten content", () => page.waitForFunction(
       () => {
         const isVisible = (element: Element) => {
           const style = window.getComputedStyle(element);
@@ -244,34 +279,36 @@ async function renderHandwriting(input: RenderInput) {
         return hasVisibleText || hasVisibleInk;
       },
       undefined,
-      { timeout: remainingTime() },
-    );
+      { timeout: remainingTime("waiting for visible handwritten content") },
+    ));
     // Aipen can report visible page content before its asynchronous MathJax
     // pass replaces inline/display-math placeholders. Capture only finished math.
-    await page.waitForFunction(
+    await runStage("waiting for mathematical notation", () => page.waitForFunction(
       () => document.querySelectorAll(".imath-loading, .dmath-loading").length === 0,
       undefined,
-      { timeout: remainingTime() },
-    );
-    if (remainingTime() < DOM_SETTLE_MS) {
-      throw new Error("Timed out while waiting for Aipen DOM changes to settle.");
-    }
-    await page.evaluate(async (settleMs) => {
-      await new Promise<void>((resolve) => {
+      { timeout: remainingTime("waiting for mathematical notation") },
+    ));
+    const settled = await runStage("waiting for Aipen DOM changes to settle", () => page.evaluate(async ({ settleMs, maxWaitMs }) => {
+      return new Promise<boolean>((resolve) => {
         let settleTimer: ReturnType<typeof setTimeout>;
+        let maxTimer: ReturnType<typeof setTimeout>;
         const observer = new MutationObserver(() => resetTimer());
-        const finish = () => {
+        const finish = (didSettle: boolean) => {
           observer.disconnect();
-          resolve();
+          clearTimeout(settleTimer);
+          clearTimeout(maxTimer);
+          resolve(didSettle);
         };
         const resetTimer = () => {
           clearTimeout(settleTimer);
-          settleTimer = setTimeout(finish, settleMs);
+          settleTimer = setTimeout(() => finish(true), settleMs);
         };
         observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+        maxTimer = setTimeout(() => finish(false), maxWaitMs);
         resetTimer();
       });
-    }, DOM_SETTLE_MS);
+    }, { settleMs: DOM_SETTLE_MS, maxWaitMs: remainingTime("waiting for Aipen DOM changes to settle") }));
+    if (!settled) throw timeoutError("waiting for Aipen DOM changes to settle");
 
     const pagedPages = page.locator(".pagedjs_page");
     const pageCount = await pagedPages.count();
@@ -291,13 +328,22 @@ async function renderHandwriting(input: RenderInput) {
         throw new Error(`Aipen page ${index + 1} has no visible dimensions.`);
       }
       pages.push({
-        jpeg: await pageElement.screenshot({ type: "jpeg", quality: 72, scale: "css" }),
+        jpeg: await runStage(`capturing preview page ${index + 1}`, () => pageElement.screenshot({
+          type: "jpeg",
+          quality: 72,
+          scale: "css",
+          timeout: remainingTime(`capturing preview page ${index + 1}`),
+        })),
         width: dimensions.width,
         height: dimensions.height,
       });
     }
 
-    const pdf = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true });
+    const pdf = await runStage("creating the vector PDF", () => page.pdf({
+      format: "A4",
+      printBackground: true,
+      preferCSSPageSize: true,
+    }));
     return { renderUrl, pages, pdf };
   } finally {
     await browser.close();
@@ -359,6 +405,11 @@ function createServer(assetOrigin: string, clientId: string) {
     async (input) => {
       let releaseRenderSlot: (() => void) | undefined;
       try {
+        if (input.text.length > MAX_RENDER_TEXT_CHARS) {
+          throw new DemoRenderInputError(
+            `These notes are ${input.text.length.toLocaleString()} characters. Please split them into smaller notes (up to ${MAX_RENDER_TEXT_CHARS.toLocaleString()} characters) before rendering.`,
+          );
+        }
         takeAnonymousRenderAllowance(clientId);
         releaseRenderSlot = acquireRenderSlot();
         const renderInput = normalizeRenderInput(input);
@@ -387,7 +438,7 @@ function createServer(assetOrigin: string, clientId: string) {
       } catch (error) {
         const message = error instanceof Error ? error.message : "Unknown rendering error.";
         return {
-          content: [{ type: "text", text: error instanceof DemoRenderLimitError ? message : `Aipen render failed: ${message}` }],
+          content: [{ type: "text", text: error instanceof DemoRenderLimitError || error instanceof DemoRenderInputError ? message : `Aipen render failed: ${message}` }],
           isError: true,
         };
       } finally {
@@ -401,7 +452,7 @@ function createServer(assetOrigin: string, clientId: string) {
 
 app.post("/mcp", async (req, res) => {
   try {
-    const server = createServer(externalOrigin(req), clientIdentity(req));
+    const server = createServer(externalOrigin(), clientIdentity(req));
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     await server.connect(transport);
     await transport.handleRequest(req, res, req.body);

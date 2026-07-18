@@ -14,8 +14,8 @@ separate. Its humanization layer can select from up to 20 glyph variations per
 character, which helps long documents avoid a mechanically repeated look.
 
 <p align="center">
-  <img src="image%20demo.jpeg" width="420" alt="Aipen handwritten mathematics notes preview" />
-  <img src="graph%20demo.jpeg" width="420" alt="Aipen hand-drawn supply and demand graph preview" />
+  <img src="docs/image%20demo.jpeg" width="420" alt="Aipen handwritten mathematics notes preview" />
+  <img src="docs/graph%20image%20demo.jpeg" width="420" alt="Aipen hand-drawn supply and demand graph preview" />
 </p>
 
 The images above are real Aipen renders: handwritten layout, ruled A4 paper,
@@ -44,7 +44,7 @@ To test it in ChatGPT Developer Mode:
    the handwritten page, change style options if desired, and select
    **Download PDF**.
 
-The demo accepts up to 8,000 characters, renders up to five pages per request,
+The demo accepts up to 6,500 characters, renders up to five pages per request,
 and allows 40 renders per IP per hour.
 
 ## Architecture
@@ -77,7 +77,7 @@ bucket lifecycle cleanup removes leftover objects later.
 - Four Aipen handwriting styles: Classic, Clean, Script, Casual
 - Ink, paper, and humanization controls
 - Markdown and LaTex-style math support through the Aipen render engine
-- Hard demo protections: 8,000 characters, five pages, 40 renders/IP/hour
+- Hard demo protections: 6,500 characters, five pages, 40 renders/IP/hour
 - Private, temporary artifact storage with no browser-exposed cloud credentials
 
 ## Study Materials
