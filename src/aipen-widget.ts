@@ -1,7 +1,8 @@
 // Changing this URI deliberately invalidates ChatGPT's cached component template.
-export const AIPEN_WIDGET_URI = "ui://widget/aipen-preview-v19.html";
+export const AIPEN_WIDGET_URI = "ui://widget/aipen-preview-v20.html";
 export const AIPEN_WIDGET_RESOURCE_URIS = [
   AIPEN_WIDGET_URI,
+  "ui://widget/aipen-preview-v19.html",
   "ui://widget/aipen-preview-v18.html",
   "ui://widget/aipen-preview-v17.html",
   "ui://widget/aipen-preview-v16.html",
@@ -106,7 +107,7 @@ export const aipenWidgetHtml = String.raw`<!doctype html>
           pu105: "Casual"
         };
         var templates = [
-          { label: "Make a graph", prompt: "Create handwritten supply and demand notes with an accurate hand-drawn supply-and-demand graph marking equilibrium. Calculate sensible values before drawing the graph, use the Aipen graph format, and include a brief explanation." },
+          { label: "Make a graph", prompt: "Create a concise handwritten supply and demand note with an accurate hand-drawn supply-and-demand graph marking equilibrium. Calculate sensible values before drawing the graph, use the Aipen graph format, and include a brief explanation in plain language. Do not include equations or LaTex unless I explicitly ask for them." },
           { label: "Calculus" }, { label: "Physics" }, { label: "Chemistry" }, { label: "Statistics" }, { label: "Linear algebra" }, { label: "Math Homework" },
           { label: "Lab Report" }, { label: "Finance" }, { label: "Economics" }, { label: "Accounting" }, { label: "Engineering" }, { label: "Differential equations" },
           { label: "Quantum mechanics" }, { label: "Thermodynamics" }, { label: "Game theory" }, { label: "Econometrics" }, { label: "Essays" }, { label: "Letter" },
