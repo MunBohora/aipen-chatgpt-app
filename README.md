@@ -131,6 +131,13 @@ render server, such as `http://localhost:3000`.
 
 The local MCP endpoint is `http://localhost:3001/mcp`.
 
+## Deployment Checklist
+
+- Confirm `PUBLIC_BASE_URL` is set to the canonical public Cloud Run URL.
+- Confirm production traffic targets only the intended revision.
+- After any tagged test revision, remove its tag and verify the traffic output
+  has no `tag` or tagged `url` entries before considering the deployment complete.
+
 ## Environment Variables
 
 | Variable | Required | Purpose |
