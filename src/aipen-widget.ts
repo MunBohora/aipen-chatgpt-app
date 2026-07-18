@@ -1,7 +1,8 @@
 // Changing this URI deliberately invalidates ChatGPT's cached component template.
-export const AIPEN_WIDGET_URI = "ui://widget/aipen-preview-v18.html";
+export const AIPEN_WIDGET_URI = "ui://widget/aipen-preview-v19.html";
 export const AIPEN_WIDGET_RESOURCE_URIS = [
   AIPEN_WIDGET_URI,
+  "ui://widget/aipen-preview-v18.html",
   "ui://widget/aipen-preview-v17.html",
   "ui://widget/aipen-preview-v16.html",
   "ui://widget/aipen-preview-v15.html",
@@ -65,6 +66,7 @@ export const aipenWidgetHtml = String.raw`<!doctype html>
       .select:focus-visible, .button:focus-visible, .thumb:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
       .select:disabled, .button:disabled { opacity: .55; cursor: wait; }
       .templates { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+      .graph-note { margin: 0 0 8px; color: var(--green-dark); font-size: 12px; font-weight: 650; }
       .templates-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
       .templates-title { margin: 0; color: var(--text); font-size: 12px; font-weight: 700; }
       .templates-status { color: var(--muted); font-size: 11px; }
@@ -104,10 +106,11 @@ export const aipenWidgetHtml = String.raw`<!doctype html>
           pu105: "Casual"
         };
         var templates = [
-          "Calculus", "Physics", "Chemistry", "Statistics", "Linear algebra", "Math Homework",
-          "Lab Report", "Finance", "Economics", "Accounting", "Engineering", "Differential equations",
-          "Quantum mechanics", "Thermodynamics", "Game theory", "Econometrics", "Essays", "Letter",
-          "Email", "Real Estate"
+          { label: "Make a graph", prompt: "Create handwritten supply and demand notes with an accurate hand-drawn supply-and-demand graph marking equilibrium. Calculate sensible values before drawing the graph, use the Aipen graph format, and include a brief explanation." },
+          { label: "Calculus" }, { label: "Physics" }, { label: "Chemistry" }, { label: "Statistics" }, { label: "Linear algebra" }, { label: "Math Homework" },
+          { label: "Lab Report" }, { label: "Finance" }, { label: "Economics" }, { label: "Accounting" }, { label: "Engineering" }, { label: "Differential equations" },
+          { label: "Quantum mechanics" }, { label: "Thermodynamics" }, { label: "Game theory" }, { label: "Econometrics" }, { label: "Essays" }, { label: "Letter" },
+          { label: "Email" }, { label: "Real Estate" }
         ];
 
         function element(tag, className, text) {
@@ -314,16 +317,17 @@ export const aipenWidgetHtml = String.raw`<!doctype html>
 
         function renderTemplates() {
           var section = element("section", "templates");
+          section.appendChild(element("p", "graph-note", "Hand-drawn graphs and charts supported on request."));
           var head = element("div", "templates-head");
           head.appendChild(element("h2", "templates-title", "Make another note"));
           if (state.presetStatus) head.appendChild(element("span", "templates-status", state.presetStatus));
           section.appendChild(head);
           var list = element("div", "template-list");
-          templates.forEach(function (name) {
-            var preset = element("button", "template", name);
+          templates.forEach(function (template) {
+            var preset = element("button", "template", template.label);
             preset.type = "button";
             preset.disabled = state.presetBusy;
-            preset.addEventListener("click", function () { requestTemplate(name); });
+            preset.addEventListener("click", function () { requestTemplate(template); });
             list.appendChild(preset);
           });
           section.appendChild(list);
@@ -331,12 +335,13 @@ export const aipenWidgetHtml = String.raw`<!doctype html>
           return section;
         }
 
-        async function requestTemplate(name) {
+        async function requestTemplate(template) {
           if (state.presetBusy) return;
+          var name = template.label;
           state.presetBusy = true;
           state.presetStatus = "Starting " + name + "...";
           render();
-          var prompt = "I want a new set of " + name + " notes, separate from the document above. Please write the actual note content and use Aipen to turn it into a new handwritten PDF. For math or science, wrap every expression in dollar signs. Do not reuse the previous notes.";
+          var prompt = template.prompt || ("I want a new set of " + name + " notes, separate from the document above. Please write the actual note content and use Aipen to turn it into a new handwritten PDF. For math or science, wrap every expression in dollar signs. Do not reuse the previous notes.");
           try {
             if (window.openai && typeof window.openai.sendFollowUpMessage === "function") {
               await window.openai.sendFollowUpMessage({ prompt: prompt, scrollToBottom: true });
