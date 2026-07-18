@@ -244,6 +244,13 @@ async function renderHandwriting(input: RenderInput) {
       undefined,
       { timeout: remainingTime() },
     );
+    // Aipen can report visible page content before its asynchronous MathJax
+    // pass replaces inline/display-math placeholders. Capture only finished math.
+    await page.waitForFunction(
+      () => document.querySelectorAll(".imath-loading, .dmath-loading").length === 0,
+      undefined,
+      { timeout: remainingTime() },
+    );
     if (remainingTime() < DOM_SETTLE_MS) {
       throw new Error("Timed out while waiting for Aipen DOM changes to settle.");
     }
