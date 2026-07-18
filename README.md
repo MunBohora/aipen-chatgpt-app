@@ -6,7 +6,7 @@ without leaving the chat.**
 Aipen for ChatGPT is an OpenAI Apps SDK application built on MCP. Ask ChatGPT
 for notes, a worked solution, a letter, or a report, and Aipen renders it as a
 paginated A4 handwritten document with an inline preview and a downloadable
-vector PDF.
+vector PDF that stays crisp when printed or zoomed in.
 
 This repository intentionally contains only the standalone MCP server and its
 inline ChatGPT component. The proprietary Aipen editor and render engine remain
@@ -67,8 +67,9 @@ bucket lifecycle cleanup removes leftover objects later.
 ## Features
 
 - Inline ChatGPT UI with A4 paper preview and PDF download
-- Vector PDF output from Chromium
+- True vector PDF output from Chromium: text and paths stay crisp at any zoom
 - Per-page JPEG thumbnails for fast previews
+- Accurate hand-drawn graphs and charts when explicitly requested
 - Four Aipen handwriting styles: Classic, Clean, Script, Casual
 - Ink, paper, and humanization controls
 - Markdown and LaTex-style math support through the Aipen render engine
