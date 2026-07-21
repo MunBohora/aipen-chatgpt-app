@@ -47,6 +47,12 @@ To test it in ChatGPT Developer Mode:
 The demo accepts up to 6,500 characters, renders up to five pages per request,
 and allows 40 renders per IP per hour.
 
+### Demo Video
+
+Watch the full 4K trailer and product walkthrough on YouTube:
+
+https://www.youtube.com/watch?v=SdR5WnF-BUk
+
 ## Architecture
 
 ```text

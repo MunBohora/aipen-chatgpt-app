@@ -131,7 +131,40 @@ type RenderedPage = {
 };
 
 const anonymousRenderCounts = new Map<string, { count: number; resetAt: number }>();
-let activeRenderCount = 0;
+
+// ---- shared browser: launch Chromium ONCE per instance and reuse it --------
+// Launching Chromium costs 5-10s on a small Cloud Run box; doing it per render
+// was the main reason back-to-back renders felt slow. We keep one browser
+// alive and open a fresh page (isolated context) per render instead.
+let sharedBrowserPromise: Promise<import("playwright").Browser> | null = null;
+
+async function getSharedBrowser() {
+  if (sharedBrowserPromise) {
+    try {
+      const existing = await sharedBrowserPromise;
+      if (existing.isConnected()) return existing;
+    } catch {
+      // fall through and relaunch
+    }
+  }
+  sharedBrowserPromise = chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+  });
+  return sharedBrowserPromise;
+}
+
+// Warm Chromium at boot so even the first render on a fresh instance skips
+// the launch cost.
+void getSharedBrowser().catch((error) => console.error("Chromium warm-up failed", error));
+
+// ---- render queue: serialize renders but WAIT instead of erroring ----------
+// Rejecting immediately made a second simultaneous request fail (and on Cloud
+// Run with concurrency=1 it triggered a cold new instance). Now up to
+// MAX_QUEUED_RENDERS requests wait their turn on the warm instance.
+const MAX_QUEUED_RENDERS = 3;
+let renderQueueTail: Promise<void> = Promise.resolve();
+let renderQueueDepth = 0;
 
 class DemoRenderLimitError extends Error {}
 class DemoRenderInputError extends Error {}
@@ -188,12 +221,21 @@ function takeAnonymousRenderAllowance(clientId: string) {
   existing.count += 1;
 }
 
-function acquireRenderSlot() {
-  if (activeRenderCount >= 1) {
-    throw new Error("Aipen is finishing another page. Please try again in a moment.");
+async function runQueuedRender<T>(task: () => Promise<T>): Promise<T> {
+  if (renderQueueDepth >= MAX_QUEUED_RENDERS) {
+    throw new Error("Aipen is very busy right now. Please try again in a minute.");
   }
-  activeRenderCount += 1;
-  return () => { activeRenderCount -= 1; };
+  renderQueueDepth += 1;
+  const previousTail = renderQueueTail;
+  let release!: () => void;
+  renderQueueTail = new Promise<void>((resolve) => { release = resolve; });
+  try {
+    await previousTail; // wait for the render ahead of us (never rejects)
+    return await task();
+  } finally {
+    renderQueueDepth -= 1;
+    release();
+  }
 }
 
 let hasWarnedAboutMissingPublicBaseUrl = false;
@@ -255,16 +297,16 @@ async function renderHandwriting(input: RenderInput) {
       if (timer) clearTimeout(timer);
     }
   };
-  const browser = await chromium.launch({
-    headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  const browser = await runStage("starting the handwriting engine", () => getSharedBrowser());
+  // Isolated context per render (own cookies/storage), closed afterwards, while
+  // the browser process itself stays warm for the next request.
+  const context = await browser.newContext({
+    deviceScaleFactor: 1.5,
+    viewport: { width: 1280, height: 1600 },
   });
 
   try {
-    const page = await browser.newPage({
-      deviceScaleFactor: 1.5,
-      viewport: { width: 1280, height: 1600 },
-    });
+    const page = await context.newPage();
     await runStage("opening the Aipen render page", () => page.goto(renderUrl, {
       waitUntil: "domcontentloaded",
       timeout: remainingTime("opening the Aipen render page"),
@@ -361,7 +403,7 @@ async function renderHandwriting(input: RenderInput) {
     }));
     return { renderUrl, pages, pdf };
   } finally {
-    await browser.close();
+    await context.close().catch(() => undefined);
   }
 }
 
@@ -418,7 +460,6 @@ function createServer(assetOrigin: string, clientId: string) {
       },
     },
     async (input) => {
-      let releaseRenderSlot: (() => void) | undefined;
       try {
         if (input.text.length > MAX_RENDER_TEXT_CHARS) {
           throw new DemoRenderInputError(
@@ -426,9 +467,8 @@ function createServer(assetOrigin: string, clientId: string) {
           );
         }
         takeAnonymousRenderAllowance(clientId);
-        releaseRenderSlot = acquireRenderSlot();
         const renderInput = normalizeRenderInput(input);
-        const { pages, pdf } = await renderHandwriting(renderInput);
+        const { pages, pdf } = await runQueuedRender(() => renderHandwriting(renderInput));
         const storedPages = await Promise.all(pages.map(async (page) => {
           const id = await storeArtifact(page.jpeg, "jpeg");
           return {
@@ -456,8 +496,6 @@ function createServer(assetOrigin: string, clientId: string) {
           content: [{ type: "text", text: error instanceof DemoRenderLimitError || error instanceof DemoRenderInputError ? message : `Aipen render failed: ${message}` }],
           isError: true,
         };
-      } finally {
-        releaseRenderSlot?.();
       }
     },
   );
